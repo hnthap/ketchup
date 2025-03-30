@@ -77,7 +77,7 @@ def _create_database(db_name=db_name):
         sqlite_vec.load(conn)
         conn.enable_load_extension(False)
         cursor = conn.cursor()
-        cursor.execute(
+        cursor.executemany(
             '''
             CREATE TABLE IF NOT EXISTS person (
                 person_id INTEGER PRIMARY KEY,
@@ -390,7 +390,7 @@ def _insert_batch(
         'transform and transform_each cannot be used together'
     with sqlite3.connect(db_name) as conn:
         try:
-            conn.execute('PRAGMA foreign_keys = 1;')
+            conn.execute('PRAGMA foreign_keys = 1')
             cursor = conn.cursor()
             for i in range(0, len(parameters), batch_size):
                 cursor.execute('BEGIN TRANSACTION')
