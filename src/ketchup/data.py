@@ -134,9 +134,7 @@ def _create_database(db_name=db_name):
         );
         CREATE VIRTUAL TABLE IF NOT EXISTS embedding (
             embedding float[768],
-            +paper_id INTEGER NOT NULL,
-            CONSTRAINT fk__embedding__paper_id
-                FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
+            +paper_id INTEGER NOT NULL
         )
         '''
     ).split(';')
