@@ -433,7 +433,7 @@ def _insert_embeddings(
         )
         df_ = (
             df_.with_columns(
-                pl.Series(embeddings, pl.List(pl.Float32)).alias('embedding')
+                pl.Series('embedding', embeddings, pl.List(pl.Float32))
             )
             .select('embedding', 'paper_id')
         )
@@ -447,9 +447,12 @@ def _insert_embeddings(
         (
             df.select('paper_id', 'abstract')
             .with_columns(
-                pl.Series(sentencize_batch(
-                    df.select('abstract').to_series().to_list(),
-                )).alias('sentence')
+                pl.Series(
+                    'sentence',
+                    sentencize_batch(
+                        df.select('abstract').to_series().to_list(),
+                    ),
+                )
             )
             .explode('sentence')
             .select('paper_id', 'sentence')
