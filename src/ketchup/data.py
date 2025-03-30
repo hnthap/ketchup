@@ -155,37 +155,38 @@ def _load_polars_data():
     Returns:
         (pl.DataFrame): Polars DataFrame containing the data.
     '''
-    ldf = (
+    df = (
         pl.scan_ndjson(
             'hf://datasets/UniverseTBD/arxiv-abstracts-large/'
             'arxiv-metadata-oai-snapshot.json'
         )
         .rename({ 'id': 'paper_id', 'journal-ref': 'journal' })
+        .with_columns(
+            pl.col('update_date')
+            .str.strip_chars().slice(0, 4)
+            .cast(pl.Int16)
+            .alias('year'),
+        )
+        .select(
+            'paper_id', 'submitter', 'authors', 'title', 'journal', 'doi',
+            'categories', 'abstract', 'year',
+        )
+        .collect()
     )
-    data_size = ldf.select(pl.first().len()).collect().item()
+    # data_size = ldf.select(pl.first().len()).collect().item()
+    data_size = len(df)
     with tqdm(total=data_size * 2) as pbar:
         def fn(x):
             pbar.update(1)
             return list(map(lambda s: s.strip(), x))
-        ldf = ldf.with_columns(
+        return df.with_columns(
             pl.col('authors')
             .str.split(',')
             .map_elements(fn, pl.List(pl.String)),
             pl.col('categories')
             .str.split(' ')
             .map_elements(fn, pl.List(pl.String)),
-            pl.col('update_date')
-            .str.strip_chars().slice(0, 4)
-            .cast(pl.Int16)
-            .alias('year'),
         )
-    return (
-        ldf.select(
-            'paper_id', 'submitter', 'authors', 'title', 'journal', 'doi',
-            'categories', 'abstract', 'year',
-        )
-        .collect()
-    )
 
 
 def _standardize_polars_data(
