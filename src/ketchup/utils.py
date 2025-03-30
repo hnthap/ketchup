@@ -7,7 +7,7 @@ import spacy
 
 _model = SentenceTransformer(
     'sentence-transformers/all-mpnet-base-v2',
-    device='cuda',
+    device='cuda' if torch.cuda.is_available() else 'cpu',
 )
 _nlp = spacy.load('en_core_web_trf')
 _nlp_disabled_components = _nlp.pipe_names
