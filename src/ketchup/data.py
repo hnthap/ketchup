@@ -58,7 +58,7 @@ def get_papers(paper_ids: list[int]) -> list[Paper]:
             p.journal,
             p.doi,
             p.abstract,
-            p.update_time,
+            p.year,
             GROUP_CONCAT(c.category, ', ') AS categories
         FROM paper p
         LEFT JOIN person s ON p.submitter_id = s.person_id
@@ -107,7 +107,7 @@ def _create_database(db_name=db_name):
             journal TEXT,
             doi TEXT,
             abstract TEXT NOT NULL,
-            update_time INTEGER NOT NULL,
+            year INTEGER NOT NULL,
             CONSTRAINT fk__paper__submitter_id
                 FOREIGN KEY (submitter_id) REFERENCES person (person_id)
         );
@@ -144,7 +144,6 @@ def _create_database(db_name=db_name):
         conn.enable_load_extension(False)
         cursor = conn.cursor()
         for query in queries:
-            print(query)
             cursor.execute(query)
         conn.commit()
 
@@ -175,14 +174,13 @@ def _load_polars_data():
                 pl.List(pl.String),
             ),
             pl.col('update_date')
-            .str.to_datetime('%Y-%m-%dT%H:%M:%s')
-            .dt.timestamp('ms')
-            .truediv(1_000)
-            .alias('update_time'),
+            .str.strip_chars().slice(0, 4)
+            .cast(pl.Int8)
+            .alias('year'),
         )
         .select(
             'paper_id', 'submitter', 'authors', 'title', 'journal', 'doi',
-            'categories', 'abstract', 'update_time',
+            'categories', 'abstract', 'year',
         )
         .collect()
     )
@@ -276,7 +274,7 @@ def _insert_papers(
     _insert_batch(
         '''
         INSERT INTO paper (
-            paper_id, submitter_id, title, journal, doi, abstract, update_time,
+            paper_id, submitter_id, title, journal, doi, abstract, year,
         )
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ''',
@@ -287,7 +285,7 @@ def _insert_papers(
             'journal',
             'doi',
             'abstract',
-            'update_time',
+            'year',
         ),
         transform=lambda x: x.rows(),
         batch_size=batch_size,

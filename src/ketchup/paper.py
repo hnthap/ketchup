@@ -13,8 +13,6 @@ class Paper(BaseModel):
     doi: str | None = Field(description='Digital Object Identifier')
     categories: list[str] = Field(description='List of categories')
     abstract: str = Field(description='Paper abstract')
-    update_time: int = Field(
-        description='Update timestamp as seconds since the UNIX epoch.'
-    )
+    year: int = Field(description='Publication year')
 
 
