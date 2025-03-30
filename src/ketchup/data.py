@@ -277,7 +277,7 @@ def _insert_papers(
     _insert_batch(
         '''
         INSERT INTO paper (
-            paper_id, submitter_id, title, journal, doi, abstract, year,
+            paper_id, submitter_id, title, journal, doi, abstract, year
         )
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ''',
