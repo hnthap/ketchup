@@ -2,6 +2,9 @@ from pydantic import BaseModel, Field
 
 
 class Paper(BaseModel):
+    '''
+    Data model for a Paper.
+    '''
     paper_id: int = Field(description='ID of the paper')
     submitter: str | None = Field(description='Submitter\'s full name')
     authors: list[str] = Field(description='List of author\'s full names')

@@ -12,6 +12,9 @@ db_name = 'ketchup.db'
 
 
 def initialize_data():
+    '''
+    Initialize data for the application.
+    '''
     print('Creating database...')
     _create_database()
     print('Loading data...')
@@ -39,6 +42,13 @@ def initialize_data():
 
     
 def get_papers(paper_ids: list[int]) -> list[Paper]:
+    '''
+    Get paper data from a list of paper IDs.
+    Args:
+        paper_ids (list[int]): List of paper IDs to retrieve.
+    Returns:
+        (list[Paper]): Paper data.
+    '''
     query = f'''
         SELECT 
             p.paper_id,
@@ -72,6 +82,11 @@ def get_papers(paper_ids: list[int]) -> list[Paper]:
 
 
 def _create_database(db_name=db_name):
+    '''
+    Create necessary tables for the database.
+    Args:
+        db_name (str): Name of the database file.
+    '''
     queries = (
         '''
         CREATE TABLE IF NOT EXISTS person (
@@ -142,6 +157,11 @@ def _create_database(db_name=db_name):
 
 
 def _load_polars_data():
+    '''
+    Load data as Polars DataFrame.
+    Returns:
+        (pl.DataFrame): Polars DataFrame containing the data.
+    '''
     return (
         pl.scan_ndjson(
             'hf://datasets/UniverseTBD/arxiv-abstracts-large/'
@@ -180,6 +200,15 @@ def _standardize_polars_data(
         person2id: dict[str, int],
         category2id: dict[str, int],
 ):
+    '''
+    Standardize data for the application.
+    Args:
+        df (pl.DataFrame): Polars DataFrame containing the data.
+        person2id (dict[str, int]): Mapping of person names to person IDs.
+        category2id (dict[str, int]): Mapping of category names to category IDs.
+    Returns:
+        (pl.DataFrame): Standardized Polars DataFrame.
+    '''
     return (
         df.lazy()
         .with_columns(
@@ -204,6 +233,14 @@ def _standardize_polars_data(
 
 
 def _retrieve_people(df: pl.DataFrame):
+    '''
+    Retrieve unique list of people's names from orginal data.
+    Args:
+        df (pl.DataFrame): Original Polars DataFrame.
+    Returns:
+        (tuple[dict[int, str], dict[str, int]]): Tuple of two dicts, one maps
+            person IDs to their names, and the other maps the other direction.
+    '''
     people = set(
         chain.from_iterable(df.select('authors').to_series().to_list()),
     )
@@ -214,6 +251,14 @@ def _retrieve_people(df: pl.DataFrame):
 
 
 def _retrieve_categories(df: pl.DataFrame):
+    '''
+    Retrieve unique list of categories from orginal data.
+    Args:
+        df (pl.DataFrame): Original Polars DataFrame.
+    Returns:
+        (tuple[dict[int, str], dict[str, int]]): Tuple of two dicts, one maps
+            category IDs to their names, and the other maps the other direction.
+    '''
     categories = set(
         chain.from_iterable(df.select('categories').to_series().to_list()),
     )
@@ -228,6 +273,13 @@ def _insert_papers(
         batch_size=1000,
         db_name=db_name,
 ):
+    '''
+    Insert paper data into the database.
+    Args:
+        df (pl.DataFrame): Polars DataFrame.
+        batch_size (int): Size of batch for insertion.
+        db_name (str): Name of the database file.
+    '''
     _insert_batch(
         '''
         INSERT INTO paper (
@@ -256,6 +308,13 @@ def _insert_categories(
         batch_size=1000,
         db_name=db_name,
 ):
+    '''
+    Insert category data into the database.
+    Args:
+        df (pl.DataFrame): Polars DataFrame.
+        batch_size (int): Size of batch for insertion.
+        db_name (str): Name of the database file.
+    '''
     _insert_batch(
         'INSERT INTO category (category_id, name) VALUES (?, ?)',
         categories,
@@ -270,6 +329,13 @@ def _insert_people(
         batch_size=1000,
         db_name=db_name,
 ):
+    '''
+    Insert person data into the database.
+    Args:
+        df (pl.DataFrame): Polars DataFrame.
+        batch_size (int): Size of batch for insertion.
+        db_name (str): Name of the database file.
+    '''
     _insert_batch(
         'INSERT INTO person (person_id, full_name) VALUES (?, ?)',
         people,
@@ -284,6 +350,13 @@ def _insert_authorships(
         batch_size=1000,
         db_name=db_name,
 ):
+    '''
+    Insert authorship data (author-paper relation) into the database.
+    Args:
+        df (pl.DataFrame): Polars DataFrame.
+        batch_size (int): Size of batch for insertion.
+        db_name (str): Name of the database file.
+    '''
     authorships = (
         df.lazy()
         .select('paper_id', 'author_ids')
@@ -320,6 +393,13 @@ def _insert_paper_categories(
         batch_size=1000,
         db_name=db_name,
 ):
+    '''
+    Insert paper-category relation data into the database.
+    Args:
+        df (pl.DataFrame): Polars DataFrame.
+        batch_size (int): Size of batch for insertion.
+        db_name (str): Name of the database file.
+    '''
     paper_categories = (
         df.lazy()
         .select('paper_id', 'category_ids')
@@ -346,6 +426,13 @@ def _insert_embeddings(
         batch_size=1000,
         db_name=db_name,
 ):
+    '''
+    Encode and insert embedding data into the database.
+    Args:
+        df (pl.DataFrame): Polars DataFrame.
+        batch_size (int): Size of batch for insertion.
+        db_name (str): Name of the database file.
+    '''
     def transform(df_: pl.DataFrame):
         embeddings = get_embeddings(
             df_.select('sentence').to_series().to_list(),
@@ -388,6 +475,16 @@ def _insert_batch(
         batch_size=1000,
         db_name=db_name,
 ):
+    '''
+    Perform INSERT prepared statements on a batch of data.
+    Args:
+        sql (str): SQL query with placeholders.
+        parameters (list): List of parameters to be used in the SQL query.
+        transform (function, optional): Function to transform each batch.
+        transform_each (function, optional): Function to transform each item in the batch.
+        batch_size (int, optional): Size of batch for insertion.
+        db_name (str, optional): Name of the database file.
+    '''
     assert not (transform and transform_each), \
         'transform and transform_each cannot be used together'
     with sqlite3.connect(db_name) as conn:
