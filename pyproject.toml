@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ketchup"
+version = "0.1.0-dev"
+dependencies = [
+    "numpy==1.26",
+    "torch==2.5",
+    "transformers>=4.48",
+    "sympy==1.13.1",
+    "pydantic==2.11",
+    "sqlite-vec==0.1.6",
+    "sentence-transformers==4.0",
+    "spacy==3.8",
+]
+authors = [
+    { name="Huynh Nhan Thap" }
+]
+description = "A package that helps answer 'What source says that?'"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.urls]
+Homepage = "https://github.com/hnthap/ketchup"
+Issues = "https://github.com/hnthap/ketchup/issues"

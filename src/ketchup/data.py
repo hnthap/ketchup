@@ -1,0 +1,410 @@
+from itertools import chain
+import sqlite3
+
+import polars as pl
+import sqlite_vec
+
+from .paper import Paper
+from .utils import flush, get_embeddings, sentencize_batch
+
+
+db_name = 'ketchup.db'
+
+
+def initialize_data():
+    print('Creating database...')
+    _create_database()
+    print('Loading data...')
+    df = _load_polars_data()
+    print('Retrieving data about people...')
+    people, person2id = _retrieve_people(df)
+    print('Retrieving data about categories...')
+    categories, category2id = _retrieve_categories(df)
+    print('Standardizing data...')
+    df = _standardize_polars_data(df, person2id, category2id)
+    print('Inserting people into database...')
+    _insert_people(people.items())
+    print('Inserting data about categories into database...')
+    _insert_categories(categories.items())
+    print('Inserting data about papers into database...')
+    _insert_papers(df)
+    print('Inserting data about authorships into database...')
+    _insert_authorships(df)
+    print('Inserting data about paper\'s categories into database...')
+    _insert_paper_categories(df)
+    print('Inserting embeddings into database...')
+    _insert_embeddings(df)
+    print('✅ Complete initializing data')
+    flush(verbose=False)
+
+    
+def get_papers(paper_ids: list[int]) -> list[Paper]:
+    query = f'''
+        SELECT 
+            p.paper_id,
+            s.full_name AS submitter,
+            GROUP_CONCAT(a.full_name, ', ' ORDER BY ap.ordering) AS authors,
+            p.title,
+            p.journal,
+            p.doi,
+            p.abstract,
+            p.update_time,
+            GROUP_CONCAT(c.category, ', ') AS categories
+        FROM paper p
+        LEFT JOIN person s ON p.submitter_id = s.person_id
+        LEFT JOIN authorship ap ON p.paper_id = ap.paper_id
+        LEFT JOIN person a ON ap.author_id = a.person_id
+        LEFT JOIN paper_category pc ON p.paper_id = pc.paper_id
+        LEFT JOIN category c ON pc.category_id = c.category_id
+        WHERE p.paper_id IN ({', '.join(list(map(str, paper_ids)))})
+        GROUP BY p.paper_id
+    '''
+    with sqlite3.connect(db_name) as conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            papers = [Paper(**dict(zip(cursor.column_names, row))) for row in rows]
+            return papers
+        except sqlite3.Error as e:
+            print(f'Error fetching papers: {e}')
+            return []
+
+
+def _create_database(db_name=db_name):
+    with sqlite3.connect(db_name) as conn:
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
+        cursor = conn.cursor()
+        cursor.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS person (
+                person_id INTEGER PRIMARY KEY,
+                full_name TEXT NOT NULL,
+                CONSTRAINT uq__person__full_name
+                    UNIQUE (full_name) ON CONFLICT ROLLBACK
+            );
+            CREATE TABLE IF NOT EXISTS category (
+                category_id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                CONSTRAINT uq__category__name UNIQUE (name) ON CONFLICT ROLLBACK
+            );
+            CREATE TABLE IF NOT EXISTS paper (
+                paper_id INTEGER PRIMARY KEY,
+                submitter_id INTEGER,
+                title TEXT NOT NULL,
+                journal TEXT,
+                doi TEXT,
+                abstract TEXT NOT NULL,
+                update_time INTEGER NOT NULL,
+                CONSTRAINT fk__paper__submitter_id
+                    FOREIGN KEY (submitter_id) REFERENCES person (person_id)
+                    ON CONFLICT ROLLBACK
+            );
+            CREATE TABLE IF NOT EXISTS authorship (
+                authorship_id INTEGER PRIMARY KEY,
+                paper_id INTEGER,
+                author_id INTEGER,
+                ordering INTEGER NOT NULL,
+                CONSTRAINT fk__authorship__paper_id
+                    FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
+                    ON CONFLICT ROLLBACK,
+                CONSTRAINT fk__authorship__author_id
+                    FOREIGN KEY (author_id) REFERENCES person (person_id)
+                    ON CONFLICT ROLLBACK,
+                CONSTRAINT uq__authorship__paper_author
+                    UNIQUE (paper_id, author_id) ON CONFLICT ROLLBACK
+            );
+            CREATE TABLE IF NOT EXISTS paper_category (
+                paper_category_id INTEGER PRIMARY KEY,
+                paper_id INTEGER,
+                category_id INTEGER,
+                CONSTRAINT fk__paper_category__paper_id
+                    FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
+                    ON CONFLICT ROLLBACK,
+                CONSTRAINT fk__paper_category__category_id
+                    FOREIGN KEY (category_id) REFERENCES category (category_id)
+                    ON CONFLICT ROLLBACK
+            );
+            CREATE VIRTUAL TABLE IF NOT EXISTS embedding (
+                embedding float[768],
+                +paper_id INTEGER NOT NULL,
+                CONSTRAINT fk__embedding__paper_id
+                    FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
+                    ON CONFLICT ROLLBACK
+            );
+            '''
+        )
+        conn.commit()
+
+
+def _load_polars_data():
+    return (
+        pl.scan_ndjson(
+            'hf://datasets/UniverseTBD/arxiv-abstracts-large/'
+            'arxiv-metadata-oai-snapshot.json'
+        )
+        .rename({ 'id': 'paper_id', 'journal-ref': 'journal' })
+        .with_columns(
+            pl.col('authors')
+            .str.split(',')
+            .map_elements(
+                lambda x: list(map(lambda s: s.strip(), x)),
+                pl.List(pl.String),
+            ),
+            pl.col('categories')
+            .str.split(' ')
+            .map_elements(
+                lambda x: list(map(lambda s: s.strip(), x)),
+                pl.List(pl.String),
+            ),
+            pl.col('update_date')
+            .str.to_datetime('%Y-%m-%dT%H:%M:%s')
+            .dt.timestamp('ms')
+            .truediv(1_000)
+            .alias('update_time'),
+        )
+        .select(
+            'paper_id', 'submitter', 'authors', 'title', 'journal', 'doi',
+            'categories', 'abstract', 'update_time',
+        )
+        .collect()
+    )
+
+
+def _standardize_polars_data(
+        df: pl.DataFrame,
+        person2id: dict[str, int],
+        category2id: dict[str, int],
+):
+    return (
+        df.lazy()
+        .with_columns(
+            pl.col('submitter')
+            .map_elements(person2id.__getitem__, pl.Int64)
+            .alias('submitter_id'),
+            pl.col('authors')
+            .map_elements(
+                lambda x: list(map(person2id.__getitem__, x)),
+                pl.List(pl.Int64),
+            )
+            .alias('author_ids'),
+            pl.col('categories')
+            .map_elements(
+                lambda x: list(map(category2id.__getitem__, x)),
+                pl.List(pl.Int64),
+            )
+            .alias('category_ids'),
+        )
+        .collect()
+    )
+
+
+def _retrieve_people(df: pl.DataFrame):
+    people = set(
+        chain.from_iterable(df.select('authors').to_series().to_list()),
+    )
+    people.update(df.select('submitter').to_series().to_list())
+    people = { i: person for i, person in enumerate(people, 1000) }
+    person2id = { person: i for i, person in people.items() }
+    return people, person2id
+
+
+def _retrieve_categories(df: pl.DataFrame):
+    categories = set(
+        chain.from_iterable(df.select('categories').to_series().to_list()),
+    )
+    categories = { i: category for i, category in enumerate(categories, 1000) }
+    category2id = { category: i for i, category in categories.items() }
+    return categories, category2id
+
+
+def _insert_papers(
+        df: pl.DataFrame,
+        *,
+        batch_size=1000,
+        db_name=db_name,
+):
+    _insert_batch(
+        '''
+        INSERT INTO paper (
+            paper_id, submitter_id, title, journal, doi, abstract, update_time,
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''',
+        df.select(
+            'paper_id',
+            'submitter_id',
+            'title',
+            'journal',
+            'doi',
+            'abstract',
+            'update_time',
+        ),
+        transform=lambda x: x.rows(),
+        batch_size=batch_size,
+        db_name=db_name,
+    )
+
+
+def _insert_categories(
+        categories: list[tuple[int, str]],
+        *,
+        batch_size=1000,
+        db_name=db_name,
+):
+    _insert_batch(
+        'INSERT INTO category (category_id, name) VALUES (?, ?)',
+        categories,
+        batch_size=batch_size,
+        db_name=db_name,
+    )
+
+
+def _insert_people(
+        people: list[tuple[int, str]],
+        *,
+        batch_size=1000,
+        db_name=db_name,
+):
+    _insert_batch(
+        'INSERT INTO person (person_id, full_name) VALUES (?, ?)',
+        people,
+        batch_size=batch_size,
+        db_name=db_name,
+    )
+
+
+def _insert_authorships(
+        df: pl.DataFrame,
+        *,
+        batch_size=1000,
+        db_name=db_name,
+):
+    authorships = (
+        df.lazy()
+        .select('paper_id', 'author_ids')
+        .with_columns(
+            pl.col('author_ids')
+            .map_elements(
+                lambda x: list(enumerate(x, 1)),
+                pl.List(
+                    pl.Struct({ 'ordering': pl.Int64, 'author_id': pl.Int64 }),
+                ),
+            ),
+        )
+        .explode('author_ids')
+        .unnest('author_ids')
+        .with_row_index('authorship_id', 1000)
+        .select('authorship_id', 'paper_id', 'author_id', 'ordering')
+        .collect()
+    )
+    _insert_batch(
+        '''
+        INSERT INTO authorship (authorship_id, paper_id, author_id, ordering)
+        VALUES (?,?,?,?)
+        ''',
+        authorships,
+        transform=lambda x: x.rows(),
+        batch_size=batch_size,
+        db_name=db_name,
+    )
+
+
+def _insert_paper_categories(
+        df: pl.DataFrame,
+        *,
+        batch_size=1000,
+        db_name=db_name,
+):
+    paper_categories = (
+        df.lazy()
+        .select('paper_id', 'category_ids')
+        .explode('category_ids')
+        .with_row_index('paper_category_id', 1000)
+        .select('paper_category_id', 'paper_id', 'category_ids')
+        .collect()
+        .rows()
+    )
+    _insert_batch(
+        '''
+        INSERT INTO paper_category (paper_category_id, paper_id, category_id)
+        VALUES (?,?,?)
+        ''',
+        paper_categories,
+        batch_size=batch_size,
+        db_name=db_name,
+    )
+
+
+def _insert_embeddings(
+        df: pl.DataFrame,
+        *,
+        batch_size=1000,
+        db_name=db_name,
+):
+    def transform(df_: pl.DataFrame):
+        embeddings = get_embeddings(
+            df_.select('sentence').to_series().to_list(),
+        )
+        df_ = (
+            df_.with_columns(
+                pl.Series(embeddings, pl.List(pl.Float32)).alias('embedding')
+            )
+            .select('embedding', 'paper_id')
+        )
+        return list(map(
+            lambda row: (sqlite_vec.serialize_float32(row[0]), row[1]),
+            df_.rows(),
+        ))
+
+    _insert_batch(
+        'INSERT INTO embedding (embedding, paper_id) VALUES (?,?)',
+        (
+            df.select('paper_id', 'abstract')
+            .with_columns(
+                pl.Series(sentencize_batch(
+                    df.select('abstract').to_series().to_list(),
+                )).alias('sentence')
+            )
+            .explode('sentence')
+            .select('paper_id', 'sentence')
+        ),
+        transform=transform,
+        batch_size=batch_size,
+        db_name=db_name,
+    )
+
+
+def _insert_batch(
+        sql: str,
+        parameters,
+        *,
+        transform=None,
+        transform_each=None,
+        batch_size=1000,
+        db_name=db_name,
+):
+    assert not (transform and transform_each), \
+        'transform and transform_each cannot be used together'
+    with sqlite3.connect(db_name) as conn:
+        try:
+            conn.execute('PRAGMA foreign_keys = 1;')
+            cursor = conn.cursor()
+            for i in range(0, len(parameters), batch_size):
+                cursor.execute('BEGIN TRANSACTION')
+                batch = parameters[i:i + batch_size]
+                if transform_each:
+                    batch = list(map(transform_each, batch))
+                if transform:
+                    batch = transform(batch)
+                cursor.executemany(sql, batch)
+                conn.commit()
+        except sqlite3.Error as e:
+            print(f'Error inserting batch: {e}')
+            if conn:
+                print('Rolling back...')
+                conn.rollback()
+    flush(verbose=False)
+
