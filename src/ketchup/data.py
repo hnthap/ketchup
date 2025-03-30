@@ -12,14 +12,17 @@ from .utils import flush, get_embeddings, sentencize_batch
 db_name = 'ketchup.db'
 
 
-def initialize_data():
+def initialize_data(*, dummy=False):
     '''
     Initialize data for the application.
+    Args:
+        dummy (bool): If True, use a tiny portion of real data as dummy data.
+            Default to False.
     '''
     print('Creating database...')
     _create_database()
     print('Loading data...')
-    df = _load_polars_data()
+    df = _load_polars_data(dummy=dummy)
     print('Retrieving data about people...')
     people, person2id = _retrieve_people(df)
     print('Retrieving data about categories...')
@@ -149,9 +152,12 @@ def _create_database(db_name=db_name):
         conn.commit()
 
 
-def _load_polars_data():
+def _load_polars_data(*, dummy=False):
     '''
     Load data as Polars DataFrame.
+    Args:
+        dummy (bool): If True, use a tiny portion real data as dummy data.
+            Default to False.
     Returns:
         (pl.DataFrame): Polars DataFrame containing the data.
     '''
@@ -173,7 +179,8 @@ def _load_polars_data():
         )
         .collect()
     )
-    # data_size = ldf.select(pl.first().len()).collect().item()
+    if dummy:
+        df = df.sample(1000, seed=2025)
     data_size = len(df)
     with tqdm(total=data_size * 2) as pbar:
         def fn(x):
@@ -454,6 +461,7 @@ def _insert_embeddings(
                     ),
                 )
             )
+            .drop('abstract')
             .explode('sentence')
             .select('paper_id', 'sentence')
         ),
@@ -499,6 +507,8 @@ def _insert_batch(
                 conn.commit()
         except sqlite3.Error as e:
             print(f'Error inserting batch: {e}')
+            print('Last SQL:')
+            print(sql.strip())
             if conn:
                 print('Rolling back...')
                 conn.rollback()
