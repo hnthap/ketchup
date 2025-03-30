@@ -110,7 +110,6 @@ def _create_database(db_name=db_name):
             update_time INTEGER NOT NULL,
             CONSTRAINT fk__paper__submitter_id
                 FOREIGN KEY (submitter_id) REFERENCES person (person_id)
-                ON CONFLICT ROLLBACK
         );
         CREATE TABLE IF NOT EXISTS authorship (
             authorship_id INTEGER PRIMARY KEY,
@@ -118,11 +117,9 @@ def _create_database(db_name=db_name):
             author_id INTEGER,
             ordering INTEGER NOT NULL,
             CONSTRAINT fk__authorship__paper_id
-                FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
-                ON CONFLICT ROLLBACK,
+                FOREIGN KEY (paper_id) REFERENCES paper (paper_id),
             CONSTRAINT fk__authorship__author_id
-                FOREIGN KEY (author_id) REFERENCES person (person_id)
-                ON CONFLICT ROLLBACK,
+                FOREIGN KEY (author_id) REFERENCES person (person_id),
             CONSTRAINT uq__authorship__paper_author
                 UNIQUE (paper_id, author_id) ON CONFLICT ROLLBACK
         );
@@ -132,14 +129,14 @@ def _create_database(db_name=db_name):
             category_id INTEGER,
             CONSTRAINT fk__paper_category__paper_id
                 FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
-                ON CONFLICT ROLLBACK,
             CONSTRAINT fk__paper_category__category_id
                 FOREIGN KEY (category_id) REFERENCES category (category_id)
-                ON CONFLICT ROLLBACK
         );
         CREATE VIRTUAL TABLE IF NOT EXISTS embedding (
             embedding float[768],
             +paper_id INTEGER NOT NULL,
+            CONSTRAINT fk__embedding__paper_id
+                FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
         )
         '''
     ).split(';')
