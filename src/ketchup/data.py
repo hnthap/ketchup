@@ -163,8 +163,8 @@ def _load_polars_data():
         .rename({ 'id': 'paper_id', 'journal-ref': 'journal' })
         .with_columns(
             pl.col('update_date')
-            .str.strip_chars().slice(0, 4)
-            .cast(pl.Int16)
+            .str.slice(0, 4)
+            .cast(pl.Int64)
             .alias('year'),
         )
         .select(
