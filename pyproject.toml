@@ -15,7 +15,6 @@ dependencies = [
     "spacy<3.8.0,>=3.7.2",
     "async-timeout<5.0.0,>=4.0.0",
     "fsspec==2024.10.0",
-    "en-core-web-trf>=3.7,<3.8",
 ]
 authors = [
     { name="Huynh Nhan Thap" }
