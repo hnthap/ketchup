@@ -134,7 +134,8 @@ def _create_database(db_name=db_name):
                     FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
                     ON CONFLICT ROLLBACK
             );
-            '''
+            ''',
+            (),
         )
         conn.commit()
 
