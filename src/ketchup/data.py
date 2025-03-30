@@ -3,6 +3,7 @@ import sqlite3
 
 import polars as pl
 import sqlite_vec
+from tqdm import tqdm
 
 from .paper import Paper
 from .utils import flush, get_embeddings, sentencize_batch
@@ -154,31 +155,32 @@ def _load_polars_data():
     Returns:
         (pl.DataFrame): Polars DataFrame containing the data.
     '''
-    return (
+    ldf = (
         pl.scan_ndjson(
             'hf://datasets/UniverseTBD/arxiv-abstracts-large/'
             'arxiv-metadata-oai-snapshot.json'
         )
         .rename({ 'id': 'paper_id', 'journal-ref': 'journal' })
-        .with_columns(
+    )
+    data_size = ldf.select(pl.first().len()).collect().item()
+    with tqdm(total=data_size * 2) as pbar:
+        def fn(x):
+            pbar.update(1)
+            return list(map(lambda s: s.strip(), x))
+        ldf = ldf.with_columns(
             pl.col('authors')
             .str.split(',')
-            .map_elements(
-                lambda x: list(map(lambda s: s.strip(), x)),
-                pl.List(pl.String),
-            ),
+            .map_elements(fn, pl.List(pl.String)),
             pl.col('categories')
             .str.split(' ')
-            .map_elements(
-                lambda x: list(map(lambda s: s.strip(), x)),
-                pl.List(pl.String),
-            ),
+            .map_elements(fn, pl.List(pl.String)),
             pl.col('update_date')
             .str.strip_chars().slice(0, 4)
-            .cast(pl.Int8)
+            .cast(pl.Int16)
             .alias('year'),
         )
-        .select(
+    return (
+        ldf.select(
             'paper_id', 'submitter', 'authors', 'title', 'journal', 'doi',
             'categories', 'abstract', 'year',
         )
