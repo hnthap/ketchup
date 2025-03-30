@@ -72,71 +72,72 @@ def get_papers(paper_ids: list[int]) -> list[Paper]:
 
 
 def _create_database(db_name=db_name):
+    queries = (
+        '''
+        CREATE TABLE IF NOT EXISTS person (
+            person_id INTEGER PRIMARY KEY,
+            full_name TEXT NOT NULL,
+            CONSTRAINT uq__person__full_name
+                UNIQUE (full_name) ON CONFLICT ROLLBACK
+        );
+        CREATE TABLE IF NOT EXISTS category (
+            category_id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            CONSTRAINT uq__category__name UNIQUE (name) ON CONFLICT ROLLBACK
+        );
+        CREATE TABLE IF NOT EXISTS paper (
+            paper_id INTEGER PRIMARY KEY,
+            submitter_id INTEGER,
+            title TEXT NOT NULL,
+            journal TEXT,
+            doi TEXT,
+            abstract TEXT NOT NULL,
+            update_time INTEGER NOT NULL,
+            CONSTRAINT fk__paper__submitter_id
+                FOREIGN KEY (submitter_id) REFERENCES person (person_id)
+                ON CONFLICT ROLLBACK
+        );
+        CREATE TABLE IF NOT EXISTS authorship (
+            authorship_id INTEGER PRIMARY KEY,
+            paper_id INTEGER,
+            author_id INTEGER,
+            ordering INTEGER NOT NULL,
+            CONSTRAINT fk__authorship__paper_id
+                FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
+                ON CONFLICT ROLLBACK,
+            CONSTRAINT fk__authorship__author_id
+                FOREIGN KEY (author_id) REFERENCES person (person_id)
+                ON CONFLICT ROLLBACK,
+            CONSTRAINT uq__authorship__paper_author
+                UNIQUE (paper_id, author_id) ON CONFLICT ROLLBACK
+        );
+        CREATE TABLE IF NOT EXISTS paper_category (
+            paper_category_id INTEGER PRIMARY KEY,
+            paper_id INTEGER,
+            category_id INTEGER,
+            CONSTRAINT fk__paper_category__paper_id
+                FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
+                ON CONFLICT ROLLBACK,
+            CONSTRAINT fk__paper_category__category_id
+                FOREIGN KEY (category_id) REFERENCES category (category_id)
+                ON CONFLICT ROLLBACK
+        );
+        CREATE VIRTUAL TABLE IF NOT EXISTS embedding (
+            embedding float[768],
+            +paper_id INTEGER NOT NULL,
+            CONSTRAINT fk__embedding__paper_id
+                FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
+                ON CONFLICT ROLLBACK
+        )
+        '''
+    ).split(';')
     with sqlite3.connect(db_name) as conn:
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
         conn.enable_load_extension(False)
         cursor = conn.cursor()
-        cursor.executemany(
-            '''
-            CREATE TABLE IF NOT EXISTS person (
-                person_id INTEGER PRIMARY KEY,
-                full_name TEXT NOT NULL,
-                CONSTRAINT uq__person__full_name
-                    UNIQUE (full_name) ON CONFLICT ROLLBACK
-            );
-            CREATE TABLE IF NOT EXISTS category (
-                category_id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                CONSTRAINT uq__category__name UNIQUE (name) ON CONFLICT ROLLBACK
-            );
-            CREATE TABLE IF NOT EXISTS paper (
-                paper_id INTEGER PRIMARY KEY,
-                submitter_id INTEGER,
-                title TEXT NOT NULL,
-                journal TEXT,
-                doi TEXT,
-                abstract TEXT NOT NULL,
-                update_time INTEGER NOT NULL,
-                CONSTRAINT fk__paper__submitter_id
-                    FOREIGN KEY (submitter_id) REFERENCES person (person_id)
-                    ON CONFLICT ROLLBACK
-            );
-            CREATE TABLE IF NOT EXISTS authorship (
-                authorship_id INTEGER PRIMARY KEY,
-                paper_id INTEGER,
-                author_id INTEGER,
-                ordering INTEGER NOT NULL,
-                CONSTRAINT fk__authorship__paper_id
-                    FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
-                    ON CONFLICT ROLLBACK,
-                CONSTRAINT fk__authorship__author_id
-                    FOREIGN KEY (author_id) REFERENCES person (person_id)
-                    ON CONFLICT ROLLBACK,
-                CONSTRAINT uq__authorship__paper_author
-                    UNIQUE (paper_id, author_id) ON CONFLICT ROLLBACK
-            );
-            CREATE TABLE IF NOT EXISTS paper_category (
-                paper_category_id INTEGER PRIMARY KEY,
-                paper_id INTEGER,
-                category_id INTEGER,
-                CONSTRAINT fk__paper_category__paper_id
-                    FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
-                    ON CONFLICT ROLLBACK,
-                CONSTRAINT fk__paper_category__category_id
-                    FOREIGN KEY (category_id) REFERENCES category (category_id)
-                    ON CONFLICT ROLLBACK
-            );
-            CREATE VIRTUAL TABLE IF NOT EXISTS embedding (
-                embedding float[768],
-                +paper_id INTEGER NOT NULL,
-                CONSTRAINT fk__embedding__paper_id
-                    FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
-                    ON CONFLICT ROLLBACK
-            );
-            ''',
-            (),
-        )
+        for query in queries:
+            cursor.execute(query)
         conn.commit()
 
 
