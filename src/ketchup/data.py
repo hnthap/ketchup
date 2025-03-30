@@ -132,7 +132,7 @@ def _create_database(db_name=db_name):
             CONSTRAINT fk__paper_category__category_id
                 FOREIGN KEY (category_id) REFERENCES category (category_id)
         );
-        CREATE VIRTUAL TABLE IF NOT EXISTS embedding (
+        CREATE VIRTUAL TABLE embedding (
             embedding float[768],
             +paper_id INTEGER
         )
