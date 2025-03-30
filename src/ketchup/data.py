@@ -149,6 +149,7 @@ def _create_database(db_name=db_name):
         conn.enable_load_extension(False)
         cursor = conn.cursor()
         for query in queries:
+            print(query)
             cursor.execute(query)
         conn.commit()
 
