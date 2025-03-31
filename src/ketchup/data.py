@@ -290,7 +290,7 @@ def _insert_papers(
         batch_size (int): Size of batch for insertion.
         db_name (str): Name of the database file.
     '''
-    for key, value in df.head(1).rows(named=True)[0]:
+    for key, value in df.head(1).rows(named=True)[0].items():
         print(key, type(value))
     _insert_batch(
         '''
