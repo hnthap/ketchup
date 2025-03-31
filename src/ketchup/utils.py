@@ -44,7 +44,10 @@ def get_embeddings(sentences: list[str]) -> list[list[float]]:
         encoded_input['attention_mask'],
     )
     sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
-    return sentence_embeddings.cpu().detach().numpy().tolist()
+    result = sentence_embeddings.cpu().detach().numpy().tolist()
+    del encoded_input, model_output, sentence_embeddings
+    torch.cuda.empty_cache()
+    return result
 
 
 def sentencize(text: str, *, nlp: spacy.language.Language=_nlp) -> list[str]:
