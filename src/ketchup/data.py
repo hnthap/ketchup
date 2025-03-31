@@ -284,12 +284,14 @@ def _standardize_polars_data(
             .map_elements(person_fn, pl.Int64)
             .alias('submitter_id'),
             pl.col('authors')
+            .replace(None, '')
             .map_elements(
                 lambda x: list(filter(lambda x: x, list(map(person_fn, x)))),
                 pl.List(pl.Int64),
             )
             .alias('author_ids'),
             pl.col('categories')
+            .replace(None, '')
             .map_elements(
                 lambda x: list(filter(lambda x: x, list(map(category_fn, x)))),
                 pl.List(pl.Int64),
