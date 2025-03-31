@@ -24,9 +24,9 @@ def search_knn(query: str, *, k=5, db_name):
             FROM embedding
             WHERE embedding MATCH ?
             ORDER BY distance
-            LIMIT ?
-            ''',
-            (sqlite_vec.serialize_float32(embedding), k),
+            LIMIT %d
+            ''' % k,
+            (sqlite_vec.serialize_float32(embedding)),
         )
         results = cursor.fetchall()
         return results
