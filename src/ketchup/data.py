@@ -9,9 +9,6 @@ from .paper import Paper
 from .utils import flush, get_embeddings, sentencize_batch
 
 
-db_name = 'ketchup.db'
-
-
 def initialize_data(*, dummy=False):
     '''
     Initialize data for the application.
@@ -31,13 +28,13 @@ def initialize_data(*, dummy=False):
     df = _standardize_polars_data(df, person2id, category2id)
     print('Inserting people into database...')
     _insert_people(list(people.items()))
-    print('Inserting data about categories into database...')
+    print('Inserting categories into database...')
     _insert_categories(list(categories.items()))
-    print('Inserting data about papers into database...')
+    print('Inserting papers into database...')
     _insert_papers(df)
-    print('Inserting data about authorships into database...')
+    print('Inserting authorships into database...')
     _insert_authorships(df)
-    print('Inserting data about paper\'s categories into database...')
+    print('Inserting paper\'s categories into database...')
     _insert_paper_categories(df)
     print('Inserting embeddings into database...')
     _insert_embeddings(df)
@@ -45,11 +42,12 @@ def initialize_data(*, dummy=False):
     flush(verbose=False)
 
     
-def get_papers(paper_ids: list[int]) -> list[Paper]:
+def get_papers(paper_ids: list[int], db_name: str) -> list[Paper]:
     '''
     Get paper data from a list of paper IDs.
     Args:
         paper_ids (list[int]): List of paper IDs to retrieve.
+        db_name (str): The name of the database file.
     Returns:
         (list[Paper]): Paper data.
     '''
@@ -85,7 +83,7 @@ def get_papers(paper_ids: list[int]) -> list[Paper]:
             return []
 
 
-def _create_database(db_name=db_name):
+def _create_database(db_name):
     '''
     Create necessary tables for the database.
     Args:
@@ -272,7 +270,7 @@ def _insert_papers(
         df: pl.DataFrame,
         *,
         batch_size=1000,
-        db_name=db_name,
+        db_name,
 ):
     '''
     Insert paper data into the database.
@@ -307,7 +305,7 @@ def _insert_categories(
         categories: list[tuple[int, str]],
         *,
         batch_size=1000,
-        db_name=db_name,
+        db_name,
 ):
     '''
     Insert category data into the database.
@@ -328,7 +326,7 @@ def _insert_people(
         people: list[tuple[int, str]],
         *,
         batch_size=1000,
-        db_name=db_name,
+        db_name,
 ):
     '''
     Insert person data into the database.
@@ -349,7 +347,7 @@ def _insert_authorships(
         df: pl.DataFrame,
         *,
         batch_size=1000,
-        db_name=db_name,
+        db_name,
 ):
     '''
     Insert authorship data (author-paper relation) into the database.
@@ -392,7 +390,7 @@ def _insert_paper_categories(
         df: pl.DataFrame,
         *,
         batch_size=1000,
-        db_name=db_name,
+        db_name,
 ):
     '''
     Insert paper-category relation data into the database.
@@ -425,7 +423,7 @@ def _insert_embeddings(
         df: pl.DataFrame,
         *,
         batch_size=1000,
-        db_name=db_name,
+        db_name,
 ):
     '''
     Encode and insert embedding data into the database.
@@ -478,7 +476,7 @@ def _insert_batch(
         transform=None,
         transform_each=None,
         batch_size=1000,
-        db_name=db_name,
+        db_name,
 ):
     '''
     Perform INSERT prepared statements on a batch of data.

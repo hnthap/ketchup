@@ -1,11 +1,10 @@
 import sqlite3
 import sqlite_vec
 
-from .data import db_name
 from .utils import get_embeddings
 
 
-def search_knn(query: str, *, k=5, db_name=db_name):
+def search_knn(query: str, *, k=5, db_name):
     '''
     Perform a k-nearest neighbors search using sqlite-vec extension.
     Args:
@@ -15,6 +14,9 @@ def search_knn(query: str, *, k=5, db_name=db_name):
     '''
     embedding = get_embeddings([query])[0]
     with sqlite3.connect(db_name) as conn:
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
         cursor = conn.cursor()
         cursor.execute(
             '''
