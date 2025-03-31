@@ -99,8 +99,9 @@ def flush(*, verbose=True):
     else:
         gc.collect()
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.reset_peak_memory_stats()
+        with torch.no_grad:
+            torch.cuda.empty_cache()
+            torch.cuda.reset_peak_memory_stats()
 
 
 def _mean_pooling(model_output, attention_mask):
