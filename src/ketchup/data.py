@@ -446,41 +446,43 @@ def _insert_embeddings(
         batch_size (int): Size of batch for insertion.
         db_name (str): Name of the database file.
     '''
-    def transform(df_: pl.DataFrame):
-        embeddings = get_embeddings(
-            df_.select('sentence').to_series().to_list(),
-        )
-        df_ = (
-            df_.with_columns(
-                pl.Series('embedding', embeddings, pl.List(pl.Float32))
+    with tqdm(total=len(range(0, len(df), batch_size))) as pbar:
+        def transform(df_: pl.DataFrame):
+            pbar.update(1)
+            embeddings = get_embeddings(
+                df_.select('sentence').to_series().to_list(),
             )
-            .select('embedding', 'paper_id')
-        )
-        return list(map(
-            lambda row: (sqlite_vec.serialize_float32(row[0]), row[1]),
-            df_.rows(),
-        ))
-
-    _insert_batch(
-        'INSERT INTO embedding (embedding, paper_id) VALUES (?,?)',
-        (
-            df.select('paper_id', 'abstract')
-            .with_columns(
-                pl.Series(
-                    'sentence',
-                    sentencize_batch(
-                        df.select('abstract').to_series().to_list(),
-                    ),
+            df_ = (
+                df_.with_columns(
+                    pl.Series('embedding', embeddings, pl.List(pl.Float32))
                 )
+                .select('embedding', 'paper_id')
             )
-            .drop('abstract')
-            .explode('sentence')
-            .select('paper_id', 'sentence')
-        ),
-        transform=transform,
-        batch_size=batch_size,
-        db_name=db_name,
-    )
+            return list(map(
+                lambda row: (sqlite_vec.serialize_float32(row[0]), row[1]),
+                df_.rows(),
+            ))
+
+        _insert_batch(
+            'INSERT INTO embedding (embedding, paper_id) VALUES (?,?)',
+            (
+                df.select('paper_id', 'abstract')
+                .with_columns(
+                    pl.Series(
+                        'sentence',
+                        sentencize_batch(
+                            df.select('abstract').to_series().to_list(),
+                        ),
+                    )
+                )
+                .drop('abstract')
+                .explode('sentence')
+                .select('paper_id', 'sentence')
+            ),
+            transform=transform,
+            batch_size=batch_size,
+            db_name=db_name,
+        )
 
 
 def _insert_batch(
