@@ -18,15 +18,14 @@ def search_knn(query: str, *, k=5, db_name):
         sqlite_vec.load(conn)
         conn.enable_load_extension(False)
         cursor = conn.cursor()
-        cursor.execute(
-            '''
+        sql = '''
             SELECT paper_id, distance
             FROM embedding
             WHERE embedding MATCH ?
             ORDER BY distance
             LIMIT %d
-            ''' % k,
-            (sqlite_vec.serialize_float32(embedding)),
-        )
+        ''' % k
+        print(sql)
+        cursor.execute(sql, (sqlite_vec.serialize_float32(embedding)))
         results = cursor.fetchall()
         return results

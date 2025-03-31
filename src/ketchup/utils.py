@@ -3,7 +3,7 @@ import gc
 import torch
 import torch.nn.functional as F
 
-import spacy
+# import spacy
 from transformers import AutoTokenizer, AutoModel
 
 
@@ -11,9 +11,9 @@ _model_id = 'sentence-transformers/all-mpnet-base-v2'
 _tokenizer = AutoTokenizer.from_pretrained(_model_id)
 _model = AutoModel.from_pretrained(_model_id)
 
-_nlp = spacy.load('en_core_web_trf')
-_nlp_disabled_components = _nlp.pipe_names
-_nlp.add_pipe('sentencizer')
+# _nlp = spacy.load('en_core_web_trf')
+# _nlp_disabled_components = _nlp.pipe_names
+# _nlp.add_pipe('sentencizer')
 
 
 def set_sentence_transformer_device(device):
@@ -55,44 +55,44 @@ def get_embeddings(sentences: list[str]) -> list[list[float]]:
     return result
 
 
-def sentencize(text: str, *, nlp: spacy.language.Language=_nlp) -> list[str]:
-    '''
-    Split a text into sentences (i.e. to sentencize).
-    Args:
-        text (str): The input text.
-        nlp (spacy.language.Language): The spaCy language model for
-            tokenization. Default to a pre-defined model.
-    Returns:
-        (list[str]): A list of sentences.
-    '''
-    return list(map(
-        lambda s: s.text.strip(),
-        nlp(text, disable=_nlp_disabled_components).sents,
-    ))
+# def sentencize(text: str, *, nlp: spacy.language.Language=_nlp) -> list[str]:
+#     '''
+#     Split a text into sentences (i.e. to sentencize).
+#     Args:
+#         text (str): The input text.
+#         nlp (spacy.language.Language): The spaCy language model for
+#             tokenization. Default to a pre-defined model.
+#     Returns:
+#         (list[str]): A list of sentences.
+#     '''
+#     return list(map(
+#         lambda s: s.text.strip(),
+#         nlp(text, disable=_nlp_disabled_components).sents,
+#     ))
 
 
-def sentencize_batch(
-        texts: list[str], 
-        *, 
-        nlp: spacy.language.Language=_nlp,
-) -> list[list[str]]:
-    '''
-    Split a batch of text into lists of sentences corresponding to each
-    sentence (i.e. to sentencize).
-    Args:
-        texts (list[str]): A batch of text.
-        nlp (spacy.language.Language): The spaCy language model for
-            tokenization. Default to a pre-defined model.
-    Returns:
-        (list[list[str]]): Lists of sentences corresponding to each sentence.
-    '''
-    return list(map(
-        lambda result: list(map(
-            lambda s: s.text.strip(),
-            result.sents,
-        )),
-        nlp.pipe(texts, disable=_nlp_disabled_components),
-    ))
+# def sentencize_batch(
+#         texts: list[str], 
+#         *, 
+#         nlp: spacy.language.Language=_nlp,
+# ) -> list[list[str]]:
+#     '''
+#     Split a batch of text into lists of sentences corresponding to each
+#     sentence (i.e. to sentencize).
+#     Args:
+#         texts (list[str]): A batch of text.
+#         nlp (spacy.language.Language): The spaCy language model for
+#             tokenization. Default to a pre-defined model.
+#     Returns:
+#         (list[list[str]]): Lists of sentences corresponding to each sentence.
+#     '''
+#     return list(map(
+#         lambda result: list(map(
+#             lambda s: s.text.strip(),
+#             result.sents,
+#         )),
+#         nlp.pipe(texts, disable=_nlp_disabled_components),
+#     ))
 
 
 def flush(*, verbose=True):
