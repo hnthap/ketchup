@@ -32,7 +32,11 @@ def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
     print('Inserting people into database...')
     _insert_people(list(people.items()), batch_size=batch_size, db_name=db_name)
     print('Inserting categories into database...')
-    _insert_categories(list(categories.items()), batch_size=batch_size, db_name=db_name)
+    _insert_categories(
+        list(categories.items()),
+        batch_size=batch_size,
+        db_name=db_name,
+    )
     print('Inserting papers into database...')
     _insert_papers(df, batch_size=batch_size, db_name=db_name)
     print('Inserting authorships into database...')
@@ -249,6 +253,7 @@ def _retrieve_people(df: pl.DataFrame):
         chain.from_iterable(df.select('authors').to_series().to_list()),
     )
     people.update(df.select('submitter').to_series().to_list())
+    people = list(filter(lambda x: x, people))
     people = { i: person for i, person in enumerate(people, 1000) }
     person2id = { person: i for i, person in people.items() }
     return people, person2id
@@ -266,6 +271,7 @@ def _retrieve_categories(df: pl.DataFrame):
     categories = set(
         chain.from_iterable(df.select('categories').to_series().to_list()),
     )
+    categories = list(filter(lambda x: x, categories))
     categories = { i: category for i, category in enumerate(categories, 1000) }
     category2id = { category: i for i, category in categories.items() }
     return categories, category2id
@@ -284,7 +290,7 @@ def _insert_papers(
         batch_size (int): Size of batch for insertion.
         db_name (str): Name of the database file.
     '''
-    for key, value in df.rows(named=True):
+    for key, value in df.head(1).rows(named=True)[0]:
         print(key, type(value))
     _insert_batch(
         '''
