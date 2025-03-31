@@ -187,7 +187,7 @@ def _load_polars_data(*, dummy=False):
         .collect()
     )
     if dummy:
-        df = df.sample(1000, seed=2025)
+        df = df.sample(2500, seed=2025)
     data_size = len(df)
     with tqdm(total=data_size * 2) as pbar:
         def fn(x):
@@ -448,19 +448,17 @@ def _insert_embeddings(
     '''
     with tqdm(total=len(range(0, len(df), batch_size))) as pbar:
         def transform(df_: pl.DataFrame):
-            pbar.update(1)
             embeddings = get_embeddings(
                 df_.select('sentence').to_series().to_list(),
             )
-            df_ = (
+            pbar.update(1)
+            return list(map(
+                lambda row: (sqlite_vec.serialize_float32(row[0]), row[1]),
                 df_.with_columns(
                     pl.Series('embedding', embeddings, pl.List(pl.Float32))
                 )
                 .select('embedding', 'paper_id')
-            )
-            return list(map(
-                lambda row: (sqlite_vec.serialize_float32(row[0]), row[1]),
-                df_.rows(),
+                .rows(),
             ))
 
         _insert_batch(
