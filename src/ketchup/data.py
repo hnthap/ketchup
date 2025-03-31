@@ -58,6 +58,7 @@ def insert_embeddings(
 ):
     '''
     Encode and insert embedding data into the database.
+    TODO: Use Dataset and DataLoader instead of iterating over batches.
     Args:
         df (pl.DataFrame): Polars DataFrame.
         batch_size (int): Size of batch for insertion.
