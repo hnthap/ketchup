@@ -43,10 +43,58 @@ def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
     _insert_authorships(df, batch_size=batch_size, db_name=db_name)
     print('Inserting paper\'s categories into database...')
     _insert_paper_categories(df, batch_size=batch_size, db_name=db_name)
-    print('Inserting embeddings into database...')
-    _insert_embeddings(df, batch_size=batch_size, db_name=db_name)
     print('✅ Complete initializing data')
     flush(verbose=False)
+
+
+def insert_embeddings(
+        df: pl.DataFrame,
+        *,
+        batch_size=1000,
+        db_name,
+):
+    '''
+    Encode and insert embedding data into the database.
+    Args:
+        df (pl.DataFrame): Polars DataFrame.
+        batch_size (int): Size of batch for insertion.
+        db_name (str): Name of the database file.
+    '''
+    with tqdm(total=len(range(0, len(df), batch_size))) as pbar:
+        def transform(df_: pl.DataFrame):
+            embeddings = get_embeddings(
+                df_.select('sentence').to_series().to_list(),
+            )
+            pbar.update(1)
+            return list(map(
+                lambda row: (sqlite_vec.serialize_float32(row[0]), row[1]),
+                df_.with_columns(
+                    pl.Series('embedding', embeddings, pl.List(pl.Float32))
+                )
+                .select('embedding', 'paper_id')
+                .rows(),
+            ))
+
+        _insert_batch(
+            'INSERT INTO embedding (embedding, paper_id) VALUES (?,?)',
+            (
+                df.select('paper_id', 'abstract')
+                .with_columns(
+                    pl.Series(
+                        'sentence',
+                        sentencize_batch(
+                            df.select('abstract').to_series().to_list(),
+                        ),
+                    )
+                )
+                .drop('abstract')
+                .explode('sentence')
+                .select('paper_id', 'sentence')
+            ),
+            transform=transform,
+            batch_size=batch_size,
+            db_name=db_name,
+        )
 
     
 def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
@@ -429,56 +477,6 @@ def _insert_paper_categories(
         batch_size=batch_size,
         db_name=db_name,
     )
-
-
-def _insert_embeddings(
-        df: pl.DataFrame,
-        *,
-        batch_size=1000,
-        db_name,
-):
-    '''
-    Encode and insert embedding data into the database.
-    Args:
-        df (pl.DataFrame): Polars DataFrame.
-        batch_size (int): Size of batch for insertion.
-        db_name (str): Name of the database file.
-    '''
-    with tqdm(total=len(range(0, len(df), batch_size))) as pbar:
-        def transform(df_: pl.DataFrame):
-            embeddings = get_embeddings(
-                df_.select('sentence').to_series().to_list(),
-            )
-            pbar.update(1)
-            return list(map(
-                lambda row: (sqlite_vec.serialize_float32(row[0]), row[1]),
-                df_.with_columns(
-                    pl.Series('embedding', embeddings, pl.List(pl.Float32))
-                )
-                .select('embedding', 'paper_id')
-                .rows(),
-            ))
-
-        _insert_batch(
-            'INSERT INTO embedding (embedding, paper_id) VALUES (?,?)',
-            (
-                df.select('paper_id', 'abstract')
-                .with_columns(
-                    pl.Series(
-                        'sentence',
-                        sentencize_batch(
-                            df.select('abstract').to_series().to_list(),
-                        ),
-                    )
-                )
-                .drop('abstract')
-                .explode('sentence')
-                .select('paper_id', 'sentence')
-            ),
-            transform=transform,
-            batch_size=batch_size,
-            db_name=db_name,
-        )
 
 
 def _insert_batch(
