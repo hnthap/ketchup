@@ -96,6 +96,7 @@ def insert_embeddings(
             ),
             transform=transform,
             batch_size=batch_size,
+            enable_sqlite_vec=True,
             db_name=db_name,
         )
 
@@ -489,6 +490,7 @@ def _insert_batch(
         transform=None,
         transform_each=None,
         batch_size=1000,
+        enable_sqlite_vec=False,
         db_name,
 ):
     '''
@@ -503,6 +505,8 @@ def _insert_batch(
             None.
         batch_size (int, optional): Size of batch for insertion. Default to
             1000.
+        enable_sqlite_vec (bool, optional): Enable SQLiteVec execution. Default
+            to False.
         db_name (str, optional): Name of the database file.
     '''
     assert not (transform and transform_each), \
@@ -510,6 +514,10 @@ def _insert_batch(
     with sqlite3.connect(db_name) as conn:
         try:
             conn.execute('PRAGMA foreign_keys = 1')
+            if enable_sqlite_vec:
+                conn.enable_load_extension(True)
+                sqlite_vec.load(conn)
+                conn.enable_load_extension(False)
             cursor = conn.cursor()
             for i in range(0, len(parameters), batch_size):
                 cursor.execute('BEGIN TRANSACTION')
