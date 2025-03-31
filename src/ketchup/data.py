@@ -49,11 +49,11 @@ def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
     flush(verbose=False)
 
     
-def get_papers(paper_ids: list[int], db_name: str) -> list[Paper]:
+def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
     '''
     Get paper data from a list of paper IDs.
     Args:
-        paper_ids (list[int]): List of paper IDs to retrieve.
+        paper_ids (list[str]): List of paper IDs to retrieve.
         db_name (str): The name of the database file.
     Returns:
         (list[Paper]): Paper data.
@@ -110,7 +110,7 @@ def _create_database(db_name):
             CONSTRAINT uq__category__name UNIQUE (name) ON CONFLICT ROLLBACK
         );
         CREATE TABLE IF NOT EXISTS paper (
-            paper_id INTEGER PRIMARY KEY,
+            paper_id TEXT PRIMARY KEY,
             submitter_id INTEGER,
             title TEXT NOT NULL,
             journal TEXT,
@@ -122,7 +122,7 @@ def _create_database(db_name):
         );
         CREATE TABLE IF NOT EXISTS authorship (
             authorship_id INTEGER PRIMARY KEY,
-            paper_id INTEGER,
+            paper_id TEXT,
             author_id INTEGER,
             ordering INTEGER NOT NULL,
             CONSTRAINT fk__authorship__paper_id
@@ -134,7 +134,7 @@ def _create_database(db_name):
         );
         CREATE TABLE IF NOT EXISTS paper_category (
             paper_category_id INTEGER PRIMARY KEY,
-            paper_id INTEGER,
+            paper_id TEXT,
             category_id INTEGER,
             CONSTRAINT fk__paper_category__paper_id
                 FOREIGN KEY (paper_id) REFERENCES paper (paper_id)
@@ -143,7 +143,7 @@ def _create_database(db_name):
         );
         CREATE VIRTUAL TABLE embedding using vec0(
             embedding float[768],
-            +paper_id INTEGER
+            +paper_id TEXT
         )
         '''
     ).split(';')
@@ -524,4 +524,3 @@ def _insert_batch(
                 print('Rolling back...')
                 conn.rollback()
     flush(verbose=False)
-
