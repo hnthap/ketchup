@@ -211,21 +211,23 @@ def _standardize_polars_data(
     Returns:
         (pl.DataFrame): Standardized Polars DataFrame.
     '''
+    def fn(full_name):
+        return person2id.get(full_name, None)
     return (
         df.lazy()
         .with_columns(
             pl.col('submitter')
-            .map_elements(person2id.__getitem__, pl.Int64)
+            .map_elements(fn, pl.Int64)
             .alias('submitter_id'),
             pl.col('authors')
             .map_elements(
-                lambda x: list(map(person2id.__getitem__, x)),
+                lambda x: list(filter(lambda x: x, list(map(fn, x)))),
                 pl.List(pl.Int64),
             )
             .alias('author_ids'),
             pl.col('categories')
             .map_elements(
-                lambda x: list(map(category2id.__getitem__, x)),
+                lambda x: list(filter(lambda x: x, list(map(fn, x)))),
                 pl.List(pl.Int64),
             )
             .alias('category_ids'),
@@ -282,6 +284,8 @@ def _insert_papers(
         batch_size (int): Size of batch for insertion.
         db_name (str): Name of the database file.
     '''
+    for key, value in df.rows(named=True):
+        print(key, type(value))
     _insert_batch(
         '''
         INSERT INTO paper (
