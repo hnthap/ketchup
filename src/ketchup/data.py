@@ -75,13 +75,13 @@ def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
         LEFT JOIN person a ON ap.author_id = a.person_id
         LEFT JOIN paper_category pc ON p.paper_id = pc.paper_id
         LEFT JOIN category c ON pc.category_id = c.category_id
-        WHERE p.paper_id IN ({', '.join(list(map(str, paper_ids)))})
+        WHERE p.paper_id = ?
         GROUP BY p.paper_id
     '''
     with sqlite3.connect(db_name) as conn:
         try:
             cursor = conn.cursor()
-            cursor.execute(query)
+            cursor.executemany(query, list(paper_ids))
             rows = cursor.fetchall()
             papers = [
                 Paper(**dict(zip(cursor.column_names, row))) for row in rows
@@ -98,8 +98,7 @@ def _create_database(db_name):
     Args:
         db_name (str): Name of the database file.
     '''
-    queries = (
-        '''
+    queries = '''
         CREATE TABLE IF NOT EXISTS person (
             person_id INTEGER PRIMARY KEY,
             full_name TEXT NOT NULL,
@@ -147,8 +146,7 @@ def _create_database(db_name):
             embedding float[768],
             +paper_id TEXT
         )
-        '''
-    ).split(';')
+    '''.split(';')
     with sqlite3.connect(db_name) as conn:
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
