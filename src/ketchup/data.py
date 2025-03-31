@@ -68,6 +68,7 @@ def insert_embeddings(
             embeddings = get_embeddings(
                 df_.select('sentence').to_series().to_list(),
             )
+            flush(verbose=False)
             pbar.update(1)
             return list(map(
                 lambda row: (sqlite_vec.serialize_float32(row[0]), row[1]),
