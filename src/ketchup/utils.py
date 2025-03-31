@@ -16,6 +16,10 @@ _nlp_disabled_components = _nlp.pipe_names
 _nlp.add_pipe('sentencizer')
 
 
+def set_sentence_transformer_device(device):
+    _model.to(device)
+
+
 def get_embeddings(sentences: list[str]) -> list[list[float]]:
     '''
     Encode a list of sentences into embeddings.
