@@ -9,15 +9,18 @@ from .paper import Paper
 from .utils import flush, get_embeddings, sentencize_batch
 
 
-def initialize_data(*, dummy=False):
+def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
     '''
     Initialize data for the application.
     Args:
         dummy (bool): If True, use a tiny portion of real data as dummy data.
             Default to False.
+        batch_size (int, optional): The number of elements to load in a batch.
+            Default to 1000.
+        db_name (str): The name of the database file.
     '''
     print('Creating database...')
-    _create_database()
+    _create_database(db_name=db_name)
     print('Loading data...')
     df = _load_polars_data(dummy=dummy)
     print('Retrieving data about people...')
@@ -27,17 +30,17 @@ def initialize_data(*, dummy=False):
     print('Standardizing data...')
     df = _standardize_polars_data(df, person2id, category2id)
     print('Inserting people into database...')
-    _insert_people(list(people.items()))
+    _insert_people(list(people.items()), batch_size=batch_size, db_name=db_name)
     print('Inserting categories into database...')
-    _insert_categories(list(categories.items()))
+    _insert_categories(list(categories.items()), batch_size=batch_size, db_name=db_name)
     print('Inserting papers into database...')
-    _insert_papers(df)
+    _insert_papers(df, batch_size=batch_size, db_name=db_name)
     print('Inserting authorships into database...')
-    _insert_authorships(df)
+    _insert_authorships(df, batch_size=batch_size, db_name=db_name)
     print('Inserting paper\'s categories into database...')
-    _insert_paper_categories(df)
+    _insert_paper_categories(df, batch_size=batch_size, db_name=db_name)
     print('Inserting embeddings into database...')
-    _insert_embeddings(df)
+    _insert_embeddings(df, batch_size=batch_size, db_name=db_name)
     print('✅ Complete initializing data')
     flush(verbose=False)
 
