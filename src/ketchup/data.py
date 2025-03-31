@@ -83,7 +83,9 @@ def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
             cursor = conn.cursor()
             cursor.execute(query)
             rows = cursor.fetchall()
-            papers = [Paper(**dict(zip(cursor.column_names, row))) for row in rows]
+            papers = [
+                Paper(**dict(zip(cursor.column_names, row))) for row in rows
+            ]
             return papers
         except sqlite3.Error as e:
             print(f'Error fetching papers: {e}')
@@ -290,8 +292,6 @@ def _insert_papers(
         batch_size (int): Size of batch for insertion.
         db_name (str): Name of the database file.
     '''
-    for key, value in df.head(1).rows(named=True)[0].items():
-        print(key, type(value))
     _insert_batch(
         '''
         INSERT INTO paper (
@@ -385,6 +385,7 @@ def _insert_authorships(
         .unnest('author_ids')
         .with_row_index('authorship_id', 1000)
         .select('authorship_id', 'paper_id', 'author_id', 'ordering')
+        .unique(['paper_id', 'author_id'])
         .collect()
     )
     _insert_batch(
@@ -484,7 +485,7 @@ def _insert_embeddings(
 
 def _insert_batch(
         sql: str,
-        parameters,
+        parameters: list,
         *,
         transform=None,
         transform_each=None,
@@ -497,8 +498,12 @@ def _insert_batch(
         sql (str): SQL query with placeholders.
         parameters (list): List of parameters to be used in the SQL query.
         transform (function, optional): Function to transform each batch.
-        transform_each (function, optional): Function to transform each item in the batch.
-        batch_size (int, optional): Size of batch for insertion.
+            If this is None, `transform_each` must be None. Default to None.
+        transform_each (function, optional): Function to transform each item in
+            the batch. If this is None, `transform` must be None. Default to
+            None.
+        batch_size (int, optional): Size of batch for insertion. Default to
+            1000.
         db_name (str, optional): Name of the database file.
     '''
     assert not (transform and transform_each), \
