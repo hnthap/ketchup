@@ -64,6 +64,20 @@ def insert_embeddings(
         batch_size (int): Size of batch for insertion.
         db_name (str): Name of the database file.
     '''
+    df = (
+        df.select('paper_id', 'abstract')
+        .with_columns(
+            pl.Series(
+                'sentence',
+                sentencize_batch(
+                    df.select('abstract').to_series().to_list(),
+                ),
+            )
+        )
+        .drop('abstract')
+        .explode('sentence')
+        .select('paper_id', 'sentence')
+    )
     with tqdm(total=len(range(0, len(df), batch_size))) as pbar:
         def transform(df_: pl.DataFrame):
             embeddings = get_embeddings(
@@ -82,20 +96,7 @@ def insert_embeddings(
 
         _insert_batch(
             'INSERT INTO embedding (embedding, paper_id) VALUES (?,?)',
-            (
-                df.select('paper_id', 'abstract')
-                .with_columns(
-                    pl.Series(
-                        'sentence',
-                        sentencize_batch(
-                            df.select('abstract').to_series().to_list(),
-                        ),
-                    )
-                )
-                .drop('abstract')
-                .explode('sentence')
-                .select('paper_id', 'sentence')
-            ),
+            df,
             transform=transform,
             batch_size=batch_size,
             enable_sqlite_vec=True,
