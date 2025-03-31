@@ -64,20 +64,6 @@ def insert_embeddings(
         batch_size (int): Size of batch for insertion.
         db_name (str): Name of the database file.
     '''
-    # df = (
-    #     df.select('paper_id', 'abstract')
-    #     .with_columns(
-    #         pl.Series(
-    #             'sentence',
-    #             sentencize_batch(
-    #                 df.select('abstract').to_series().to_list(),
-    #             ),
-    #         )
-    #     )
-    #     .drop('abstract')
-    #     .explode('sentence')
-    #     .select('paper_id', 'sentence')
-    # )
     with tqdm(total=len(range(0, len(df), batch_size))) as pbar:
         def transform(df_: pl.DataFrame):
             embeddings = get_embeddings(
@@ -148,13 +134,13 @@ def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
                 Paper(
                     paper_id=row[0],
                     submitter=row[1],
-                    authors=row[2].split(', '),
+                    authors=row[2].split(', ') if row[2] else None,
                     title=row[3],
                     journal=row[4],
                     doi=row[5],
                     abstract=row[6],
                     year=row[7],
-                    categories=row[8].split(', '),
+                    categories=row[8].split(', ') if row[8] else None,
                 )
                 for row in rows
             ]
