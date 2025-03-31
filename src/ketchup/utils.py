@@ -46,7 +46,12 @@ def get_embeddings(sentences: list[str]) -> list[list[float]]:
     sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
     result = sentence_embeddings.cpu().detach().numpy().tolist()
     del encoded_input, model_output, sentence_embeddings
+    print('Allocated CUDA memory: %s / %s' % (
+        torch.cuda.memory_allocated(),
+        torch.cuda.max_memory_allocated(),
+    ))
     torch.cuda.empty_cache()
+    gc.collect()
     return result
 
 
