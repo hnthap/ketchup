@@ -1,3 +1,5 @@
+# TODO: Remove categories table.
+
 from itertools import chain
 import sqlite3
 
@@ -90,7 +92,7 @@ def insert_embeddings(
         )
 
     
-def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
+def get_papers(paper_ids: list[str], db_name: str) -> list[dict]:
     '''
     Get paper data from a list of paper IDs.
     Args:
@@ -120,8 +122,6 @@ def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
         LEFT JOIN person s ON p.submitter_id = s.person_id
         LEFT JOIN authorship ap ON p.paper_id = ap.paper_id
         LEFT JOIN person a ON ap.author_id = a.person_id
-        LEFT JOIN paper_category pc ON p.paper_id = pc.paper_id
-        LEFT JOIN category c ON pc.category_id = c.category_id
         WHERE p.paper_id IN (%s)
         GROUP BY p.paper_id
     ''' % (', '.join(list(map(lambda s: "'%s'" % s, paper_ids))))
@@ -131,17 +131,15 @@ def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
             cursor.execute(query)
             rows = cursor.fetchall()
             papers = [
-                Paper(
-                    paper_id=row[0],
-                    submitter=row[1],
-                    authors=row[2].split(', ') if row[2] else None,
-                    title=row[3],
-                    journal=row[4],
-                    doi=row[5],
-                    abstract=row[6],
-                    year=row[7],
-                    categories=row[8].split(', ') if row[8] else None,
-                )
+                {
+                    'paper_id': row[0],
+                    'authors': row[2],
+                    'title': row[3],
+                    'journal': row[4],
+                    'doi': row[5],
+                    'abstract': row[6],
+                    'year': row[7],
+                }
                 for row in rows
             ]
             return papers
