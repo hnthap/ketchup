@@ -34,6 +34,9 @@ def get_embeddings(sentences: list[str]) -> list[list[float]]:
         truncation=True,
         return_tensors='pt',
     )
+    encoded_input = {
+        key: value.to(_model.device) for key, value in encoded_input.items()
+    }
     with torch.no_grad():
         model_output = _model(**encoded_input)
     sentence_embeddings = _mean_pooling(
