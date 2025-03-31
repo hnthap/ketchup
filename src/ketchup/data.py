@@ -9,6 +9,9 @@ from .paper import Paper
 from .utils import flush, get_embeddings, sentencize_batch
 
 
+_df = None
+
+
 def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
     '''
     Initialize data for the application.
@@ -19,16 +22,17 @@ def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
             Default to 1000.
         db_name (str): The name of the database file.
     '''
+    global _df
     print('Creating database...')
     _create_database(db_name=db_name)
     print('Loading data...')
-    df = _load_polars_data(dummy=dummy)
+    _df = _load_polars_data(dummy=dummy)
     print('Retrieving data about people...')
-    people, person2id = _retrieve_people(df)
+    people, person2id = _retrieve_people(_df)
     print('Retrieving data about categories...')
-    categories, category2id = _retrieve_categories(df)
+    categories, category2id = _retrieve_categories(_df)
     print('Standardizing data...')
-    df = _standardize_polars_data(df, person2id, category2id)
+    _df = _standardize_polars_data(_df, person2id, category2id)
     print('Inserting people into database...')
     _insert_people(list(people.items()), batch_size=batch_size, db_name=db_name)
     print('Inserting categories into database...')
@@ -38,17 +42,17 @@ def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
         db_name=db_name,
     )
     print('Inserting papers into database...')
-    _insert_papers(df, batch_size=batch_size, db_name=db_name)
+    _insert_papers(_df, batch_size=batch_size, db_name=db_name)
     print('Inserting authorships into database...')
-    _insert_authorships(df, batch_size=batch_size, db_name=db_name)
+    _insert_authorships(_df, batch_size=batch_size, db_name=db_name)
     print('Inserting paper\'s categories into database...')
-    _insert_paper_categories(df, batch_size=batch_size, db_name=db_name)
+    _insert_paper_categories(_df, batch_size=batch_size, db_name=db_name)
     print('✅ Complete initializing data')
     flush(verbose=False)
 
 
 def insert_embeddings(
-        df: pl.DataFrame,
+        df: pl.DataFrame=_df,
         *,
         batch_size=1000,
         db_name,
