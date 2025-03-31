@@ -1,5 +1,3 @@
-# TODO: Remove categories table.
-
 from itertools import chain
 import sqlite3
 
@@ -92,7 +90,7 @@ def insert_embeddings(
         )
 
     
-def get_papers(paper_ids: list[str], db_name: str) -> list[dict]:
+def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
     '''
     Get paper data from a list of paper IDs.
     Args:
@@ -122,6 +120,8 @@ def get_papers(paper_ids: list[str], db_name: str) -> list[dict]:
         LEFT JOIN person s ON p.submitter_id = s.person_id
         LEFT JOIN authorship ap ON p.paper_id = ap.paper_id
         LEFT JOIN person a ON ap.author_id = a.person_id
+        LEFT JOIN paper_category pc ON p.paper_id = pc.paper_id
+        LEFT JOIN category c ON pc.category_id = c.category_id
         WHERE p.paper_id IN (%s)
         GROUP BY p.paper_id
     ''' % (', '.join(list(map(lambda s: "'%s'" % s, paper_ids))))
@@ -131,15 +131,17 @@ def get_papers(paper_ids: list[str], db_name: str) -> list[dict]:
             cursor.execute(query)
             rows = cursor.fetchall()
             papers = [
-                {
-                    'paper_id': row[0],
-                    'authors': row[2],
-                    'title': row[3],
-                    'journal': row[4],
-                    'doi': row[5],
-                    'abstract': row[6],
-                    'year': row[7],
-                }
+                Paper(
+                    paper_id=row[0],
+                    submitter=row[1],
+                    authors=row[2].split(', '),
+                    title=row[3],
+                    journal=row[4],
+                    doi=row[5],
+                    abstract=row[6],
+                    year=row[7],
+                    categories=row[8].split(', '),
+                )
                 for row in rows
             ]
             return papers
@@ -271,23 +273,25 @@ def _standardize_polars_data(
     Returns:
         (pl.DataFrame): Standardized Polars DataFrame.
     '''
-    def fn(full_name):
+    def person_fn(full_name):
         return person2id.get(full_name, None)
+    def category_fn(name):
+        return category2id.get(name, None)
     return (
         df.lazy()
         .with_columns(
             pl.col('submitter')
-            .map_elements(fn, pl.Int64)
+            .map_elements(person_fn, pl.Int64)
             .alias('submitter_id'),
             pl.col('authors')
             .map_elements(
-                lambda x: list(filter(lambda x: x, list(map(fn, x)))),
+                lambda x: list(filter(lambda x: x, list(map(person_fn, x)))),
                 pl.List(pl.Int64),
             )
             .alias('author_ids'),
             pl.col('categories')
             .map_elements(
-                lambda x: list(filter(lambda x: x, list(map(fn, x)))),
+                lambda x: list(filter(lambda x: x, list(map(category_fn, x)))),
                 pl.List(pl.Int64),
             )
             .alias('category_ids'),
