@@ -104,6 +104,7 @@ def get_abstracts(paper_ids = None, *, db_name: str) -> pl.DataFrame | None:
             return pl.DataFrame(
                 rows,
                 { 'paper_id': pl.String, 'abstract': pl.String },
+                orient='row',
             )
         except sqlite3.Error as e:
             print(f'Error fetching papers: {e}')

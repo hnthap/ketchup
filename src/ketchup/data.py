@@ -10,6 +10,9 @@ from .paper import get_abstracts
 from .utils import flush
 
 
+_dummy_size = 100
+
+
 def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
     '''
     Initialize data for the application.
@@ -177,7 +180,7 @@ def _load_polars_data(*, dummy=False):
         .collect()
     )
     if dummy:
-        df = df.sample(2500, seed=2025)
+        df = df.sample(_dummy_size, seed=2025)
     data_size = len(df)
     with tqdm(total=data_size * 2) as pbar:
         def fn(x):

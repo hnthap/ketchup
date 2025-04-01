@@ -49,7 +49,7 @@ This is a simple RAG implementation using SQLite-Vec and Sentence Transformer. T
 
 ```mermaid
 flowchart LR;
-    i((Input Text))
+    i((Query))
     o((Similar
     Articles))
 
@@ -65,11 +65,11 @@ subgraph Application
 end
 ```
 
-With this, you can find research articles similar to the information (input text) you want to find.
+With this, you can find research articles similar to the information (query) you want to find.
 
 There are two ways to get started:
 
-* [Using Docker](#getting-started-docker) to run the web application;
+* [Using Docker](#getting-started-docker) to quickly run the web application;
 * [Using Python](#getting-started-python).
 
 <p align="right">[ <a href="#readme-top">back to top</a> ]</p>
