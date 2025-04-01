@@ -54,16 +54,22 @@ def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
     return df
 
 
-def insert_embeddings(*, batch_size=256, db_name):
+def insert_embeddings(*, batch_size=256, preprocess_dataframe=None, db_name):
     '''
     Encode and insert embedding data into the database.
     Args:
         df (pl.DataFrame): Polars DataFrame.
         batch_size (int): Size of batch for insertion.
+        preprocess_dataframe (function, optional): A function to preprocess 
+            the Polars dataframe before iterating to calculate embeddings.
+            The Polars dataframe has two columns: paper ID `paper_id` (string)
+            and abstract `abstract` (string). Default to None.
         db_name (str): Name of the database file.
     '''
-    abstracts = get_abstracts(db_name=db_name)
-    with tqdm(total=len(range(0, len(abstracts), batch_size))) as pbar:
+    df = get_abstracts(db_name=db_name)
+    if preprocess_dataframe:
+        df = preprocess_dataframe(df)
+    with tqdm(total=len(range(0, len(df), batch_size))) as pbar:
         def transform(df_: pl.DataFrame):
             embeddings = get_embeddings(
                 df_.select('abstract').to_series().to_list(),
@@ -80,7 +86,7 @@ def insert_embeddings(*, batch_size=256, db_name):
             ))
         _insert_batch(
             'INSERT INTO embedding (embedding, paper_id) VALUES (?,?)',
-            abstracts,
+            df,
             transform=transform,
             batch_size=batch_size,
             enable_sqlite_vec=True,
@@ -439,7 +445,7 @@ def _insert_batch(
         transform_each=None,
         batch_size=1000,
         enable_sqlite_vec=False,
-        db_name,
+        db_name: str,
 ):
     '''
     Perform INSERT prepared statements on a batch of data.
