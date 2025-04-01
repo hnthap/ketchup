@@ -3,6 +3,8 @@ import sqlite3
 import polars as pl
 from pydantic import BaseModel, Field
 
+from .utils import get_data_path
+
 
 class Paper(BaseModel):
     '''
@@ -19,7 +21,10 @@ class Paper(BaseModel):
     year: int = Field(description='Publication year')
 
 
-def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
+def get_papers(
+        paper_ids: list[str],
+        db_name=get_data_path('database'),
+) -> list[Paper]:
     '''
     Get paper data from a list of paper IDs.
     Args:
@@ -79,7 +84,11 @@ def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
             return []
         
 
-def get_abstracts(paper_ids = None, *, db_name: str) -> pl.DataFrame | None:
+def get_abstracts(
+        paper_ids = None,
+        *,
+        db_name=get_data_path('database'),
+) -> pl.DataFrame | None:
     '''
     Get abstracts for a given list of paper IDs, or get all abstracts.
     Args:

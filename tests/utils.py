@@ -1,0 +1,1 @@
+db_name = 'temp/ketchup-test.db'

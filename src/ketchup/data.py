@@ -1,4 +1,5 @@
 from itertools import chain
+import os
 import sqlite3
 
 import polars as pl
@@ -7,13 +8,22 @@ from tqdm import tqdm
 
 from .embed import get_embeddings
 from .paper import get_abstracts
-from .utils import flush
+from .utils import flush, get_data_path
 
 
 _dummy_size = 100
 
 
-def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
+def initialize_data(
+        *,
+        dummy=False,
+        batch_size=1000,
+        db_name=get_data_path(
+            'database',
+            download_if_missing=False,
+            ignore_missing=True,
+        ),
+):
     '''
     Initialize data for the application.
     Args:
@@ -25,6 +35,8 @@ def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
     Returns:
         (pl.DataFrame): The processed dataframe.
     '''
+    if os.path.exists(db_name):
+        os.remove(db_name)
     print('Creating database...')
     _create_database(db_name=db_name)
     print('Loading data...')
@@ -51,10 +63,14 @@ def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
     _insert_paper_categories(df, batch_size=batch_size, db_name=db_name)
     print('✅ Complete initializing data')
     flush(verbose=False)
-    return df
 
 
-def insert_embeddings(*, batch_size=256, preprocess_dataframe=None, db_name):
+def insert_embeddings(
+        *, 
+        batch_size=256, 
+        preprocess_dataframe=None, 
+        db_name=get_data_path('database'),
+):
     '''
     Encode and insert embedding data into the database.
     Args:
@@ -179,10 +195,18 @@ def _load_polars_data(*, dummy=False):
             .str.slice(0, 4)
             .cast(pl.Int64)
             .alias('year'),
+            pl.col('abstract').str.strip_chars(),
         )
         .select(
             'paper_id', 'submitter', 'authors', 'title', 'journal', 'doi',
             'categories', 'abstract', 'year',
+        )
+        .filter(
+            pl.col('abstract') != \
+                'This paper has been withdrawn by the authors.',
+            pl.col('abstract') != \
+                'This paper has been withdrawn due to copyright reasons.',
+            ~pl.col('abstract').str.starts_with('No abstract given;'),
         )
         .collect()
     )
