@@ -75,6 +75,7 @@ def insert_embeddings(*, batch_size=256, db_name):
                 df_.with_columns(
                     pl.Series('embedding', embeddings, pl.List(pl.Float32))
                 )
+                .select('embedding', 'paper_id')
                 .rows(),
             ))
         _insert_batch(
