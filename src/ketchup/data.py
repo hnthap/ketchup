@@ -5,8 +5,9 @@ import polars as pl
 import sqlite_vec
 from tqdm import tqdm
 
-from .paper import Paper
-from .utils import flush, get_embeddings
+from .embed import get_embeddings
+from .paper import get_abstracts
+from .utils import flush
 
 
 def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
@@ -50,21 +51,16 @@ def initialize_data(*, dummy=False, batch_size=1000, db_name: str):
     return df
 
 
-def insert_embeddings(
-        df: pl.DataFrame,
-        *,
-        batch_size=1000,
-        db_name,
-):
+def insert_embeddings(*, batch_size=256, db_name):
     '''
     Encode and insert embedding data into the database.
-    TODO: Use Dataset and DataLoader instead of iterating over batches.
     Args:
         df (pl.DataFrame): Polars DataFrame.
         batch_size (int): Size of batch for insertion.
         db_name (str): Name of the database file.
     '''
-    with tqdm(total=len(range(0, len(df), batch_size))) as pbar:
+    abstracts = get_abstracts(db_name=db_name)
+    with tqdm(total=len(range(0, len(abstracts), batch_size))) as pbar:
         def transform(df_: pl.DataFrame):
             embeddings = get_embeddings(
                 df_.select('abstract').to_series().to_list(),
@@ -76,78 +72,16 @@ def insert_embeddings(
                 df_.with_columns(
                     pl.Series('embedding', embeddings, pl.List(pl.Float32))
                 )
-                .select('embedding', 'paper_id')
                 .rows(),
             ))
-
         _insert_batch(
             'INSERT INTO embedding (embedding, paper_id) VALUES (?,?)',
-            df.select('paper_id', 'abstract'),
+            abstracts,
             transform=transform,
             batch_size=batch_size,
             enable_sqlite_vec=True,
             db_name=db_name,
         )
-
-    
-def get_papers(paper_ids: list[str], db_name: str) -> list[Paper]:
-    '''
-    Get paper data from a list of paper IDs.
-    Args:
-        paper_ids (list[str]): List of paper IDs to retrieve.
-        db_name (str): The name of the database file.
-    Returns:
-        (list[Paper]): Paper data.
-    '''
-    query = f'''
-        SELECT 
-            p.paper_id,
-            s.full_name AS submitter,
-            (
-                SELECT GROUP_CONCAT(a2.full_name, ', ')
-                FROM authorship ap2
-                LEFT JOIN person a2 ON ap2.author_id = a2.person_id
-                WHERE ap2.paper_id = p.paper_id
-                ORDER BY ap2.ordering
-            ) AS authors,
-            p.title,
-            p.journal,
-            p.doi,
-            p.abstract,
-            p.year,
-            GROUP_CONCAT(c.name, ', ') AS categories
-        FROM paper p
-        LEFT JOIN person s ON p.submitter_id = s.person_id
-        LEFT JOIN authorship ap ON p.paper_id = ap.paper_id
-        LEFT JOIN person a ON ap.author_id = a.person_id
-        LEFT JOIN paper_category pc ON p.paper_id = pc.paper_id
-        LEFT JOIN category c ON pc.category_id = c.category_id
-        WHERE p.paper_id IN (%s)
-        GROUP BY p.paper_id
-    ''' % (', '.join(list(map(lambda s: "'%s'" % s, paper_ids))))
-    with sqlite3.connect(db_name) as conn:
-        try:
-            cursor = conn.cursor()
-            cursor.execute(query)
-            rows = cursor.fetchall()
-            papers = [
-                Paper(
-                    paper_id=row[0],
-                    submitter=row[1],
-                    authors=row[2].split(', '),
-                    title=row[3],
-                    journal=row[4],
-                    doi=row[5],
-                    abstract=row[6],
-                    year=row[7],
-                    categories=row[8].split(', '),
-                )
-                for row in rows
-            ]
-            return papers
-        except sqlite3.Error as e:
-            print(f'Error fetching papers: {e}')
-            return []
 
 
 def _create_database(db_name):

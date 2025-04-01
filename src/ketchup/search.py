@@ -1,7 +1,7 @@
 import sqlite3
 import sqlite_vec
 
-from .utils import get_embeddings
+from .embed import get_embeddings
 
 
 def search_knn(query: str, *, k=5, db_name):
